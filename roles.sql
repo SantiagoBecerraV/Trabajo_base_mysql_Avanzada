@@ -1,6 +1,7 @@
 -- ===========================================
 -- ROLES 
 -- CREACION DE ROLES 
+USE ecommerce_db;
 
 -- administrador_sistema
 CREATE ROLE IF NOT EXISTS 'administrador_sistema';
