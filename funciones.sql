@@ -55,10 +55,7 @@ UPDATE productos SET peso_kg = 20    WHERE id_producto = 10;
 UPDATE productos SET peso_kg = 0.4   WHERE id_producto = 11;
 
 
--- ====================================
--- 1. fn_CalcularTotalVenta
--- suma el detalle de una venta y devuelve el total
--- ====================================
+
 DROP FUNCTION IF EXISTS fn_CalcularTotalVenta;
 CREATE FUNCTION fn_CalcularTotalVenta(p_id_venta INT)
 RETURNS DECIMAL(14,2)
@@ -75,10 +72,7 @@ BEGIN
 END;
 
 
--- ====================================
--- 2. fn_VerificarDisponibilidadStock
--- revisa si hay suficiente stock de un producto para la cantidad pedida
--- ====================================
+
 DROP FUNCTION IF EXISTS fn_VerificarDisponibilidadStock;
 CREATE FUNCTION fn_VerificarDisponibilidadStock(p_id_producto INT, p_cantidad INT)
 RETURNS BOOLEAN
@@ -142,10 +136,6 @@ BEGIN
 END;
 
 
--- ====================================
--- 5. fn_FormatearNombreCompleto
--- junta nombre y apellido del cliente en un solo texto
--- ====================================
 DROP FUNCTION IF EXISTS fn_FormatearNombreCompleto;
 CREATE FUNCTION fn_FormatearNombreCompleto(p_id_cliente INT)
 RETURNS VARCHAR(170)
@@ -163,10 +153,6 @@ BEGIN
 END;
 
 
--- ====================================
--- 6. fn_EsClienteNuevo
--- dice si la primera compra del cliente fue hace menos de 30 dias
--- ====================================
 DROP FUNCTION IF EXISTS fn_EsClienteNuevo;
 CREATE FUNCTION fn_EsClienteNuevo(p_id_cliente INT)
 RETURNS BOOLEAN
@@ -191,11 +177,6 @@ BEGIN
 END;
 
 
--- ====================================
--- 7. fn_CalcularCostoEnvio
--- suma el peso de los productos de una venta y calcula el envio
--- regla que usamos: $2000 por cada kilo, minimo $5000
--- ====================================
 DROP FUNCTION IF EXISTS fn_CalcularCostoEnvio;
 CREATE FUNCTION fn_CalcularCostoEnvio(p_id_venta INT)
 RETURNS DECIMAL(12,2)
@@ -220,10 +201,7 @@ BEGIN
 END;
 
 
--- ====================================
--- 8. fn_AplicarDescuento
--- resta un porcentaje de descuento a un monto
--- ====================================
+
 DROP FUNCTION IF EXISTS fn_AplicarDescuento;
 CREATE FUNCTION fn_AplicarDescuento(p_monto DECIMAL(14,2), p_porcentaje DECIMAL(5,2))
 RETURNS DECIMAL(14,2)
@@ -237,10 +215,6 @@ BEGIN
 END;
 
 
--- ====================================
--- 9. fn_ObtenerUltimaFechaCompra
--- devuelve la fecha de la ultima venta que hizo un cliente
--- ====================================
 DROP FUNCTION IF EXISTS fn_ObtenerUltimaFechaCompra;
 CREATE FUNCTION fn_ObtenerUltimaFechaCompra(p_id_cliente INT)
 RETURNS DATETIME
@@ -257,10 +231,7 @@ BEGIN
 END;
 
 
--- ====================================
--- 10. fn_ValidarFormatoEmail
--- revisa con una expresion regular si el texto parece un correo valido
--- ====================================
+
 DROP FUNCTION IF EXISTS fn_ValidarFormatoEmail;
 CREATE FUNCTION fn_ValidarFormatoEmail(p_email VARCHAR(150))
 RETURNS BOOLEAN
@@ -274,9 +245,7 @@ BEGIN
 END;
 
 
--- ====================================
--- pruebas rapidas
--- ====================================
+
 SELECT fn_CalcularTotalVenta(1) AS total_venta_1;
 SELECT fn_VerificarDisponibilidadStock(4, 10) AS hay_stock_producto_4;
 SELECT fn_ObtenerPrecioProducto(1) AS precio_producto_1;

@@ -148,8 +148,7 @@ BEGIN
 
     SET p_monto_credito = v_precio_pagado * p_cantidad;
 
-    -- el motivo no se guarda en ninguna tabla, solo se recibe como referencia
-    SELECT p_motivo AS motivo_recibido, p_monto_credito AS credito_generado;
+b      SELECT p_motivo AS motivo_recibido, p_monto_credito AS credito_generado;
 END$$
 
 DELIMITER ;
@@ -306,8 +305,6 @@ BEGIN
     SET estado = p_nuevo_estado
     WHERE id_venta = p_id_venta;
 
-    -- aqui iria la notificacion a otros sistemas si el proyecto lo pidiera,
-    -- por ahora solo confirmamos el cambio
     SELECT p_id_venta AS venta, p_nuevo_estado AS nuevo_estado;
 END$$
 
