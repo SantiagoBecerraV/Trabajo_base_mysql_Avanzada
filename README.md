@@ -25,11 +25,6 @@ transaccionales.
 | Privilegios | Una cuenta con permisos de administración (`root` o equivalente) |
 | Cliente | MySQL Workbench, DBeaver o la línea de comandos `mysql` |
 
-Se requiere MySQL 8.0 porque el proyecto usa funcionalidades que no existen en
-versiones anteriores: roles (`CREATE ROLE`), expresiones de tabla común (`WITH`),
-funciones de ventana (`NTILE`, `SUM() OVER`) y restricciones `CHECK` con
-validación real.
-
 ---
 
 ## Instrucciones de ejecución
@@ -60,18 +55,7 @@ Desde MySQL Workbench: abrir cada archivo y ejecutarlo completo
 | 6 | `06_Eventos.sql` | Activa el planificador y crea 10 eventos programados. |
 | 7 | `07_Procedimientos_Almacenados.sql` | 10 procedimientos almacenados más sus pruebas. |
 
-**Por qué este orden importa:**
 
-- `04` otorga permisos sobre tablas que crea `01`.
-- `05` y `07` dependen de las columnas y tablas definidas en `01`.
-- `07` usa `fn_AplicarDescuento`, que se define en `03`.
-- `07` usa `sp_probar_error`, el ayudante de pruebas que se define en `05`.
-
-Todos los archivos son **reejecutables**: usan `DROP ... IF EXISTS` y
-`CREATE ... IF NOT EXISTS`. La única excepción es `01`, que por diseño recrea la
-base completa y descarta lo que hubiera antes.
-
----
 
 ## Estructura de la base de datos
 
