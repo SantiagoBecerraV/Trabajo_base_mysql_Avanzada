@@ -1,7 +1,6 @@
 -- =====================================================================
 -- PROYECTO BASE DE DATOS AVANZADA - E-COMMERCE
 -- Archivo 01: Esquema y Datos
-
 -- =====================================================================
 
 DROP DATABASE IF EXISTS ecommerce_db;
@@ -11,13 +10,6 @@ CREATE DATABASE ecommerce_db
 USE ecommerce_db;
 
 
--- =====================================================================
--- SECCION 1: TABLAS DEL NUCLEO DEL NEGOCIO
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- categorias: sistema de clasificacion de los productos
--- ---------------------------------------------------------------------
 CREATE TABLE categorias (
     id_categoria INT AUTO_INCREMENT PRIMARY KEY,
     nombre       VARCHAR(80) NOT NULL UNIQUE,
@@ -25,9 +17,6 @@ CREATE TABLE categorias (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- proveedores: entidades que suministran los productos
--- ---------------------------------------------------------------------
 CREATE TABLE proveedores (
     id_proveedor      INT AUTO_INCREMENT PRIMARY KEY,
     nombre            VARCHAR(150) NOT NULL,
@@ -36,13 +25,7 @@ CREATE TABLE proveedores (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- productos: catalogo de articulos a la venta
---
--- id_categoria se deja NULL-able a proposito: el trigger
--- trg_assign_default_category_on_null (archivo 05) asigna la categoria
--- 'General' cuando se inserta un producto sin clasificar.
--- ---------------------------------------------------------------------
+
 CREATE TABLE productos (
     id_producto        INT AUTO_INCREMENT PRIMARY KEY,
     nombre             VARCHAR(150) NOT NULL UNIQUE,
@@ -70,9 +53,6 @@ CREATE TABLE productos (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- clientes: usuarios registrados que realizan compras
--- ---------------------------------------------------------------------
 CREATE TABLE clientes (
     id_cliente          INT AUTO_INCREMENT PRIMARY KEY,
     nombre              VARCHAR(80) NOT NULL,
@@ -89,9 +69,6 @@ CREATE TABLE clientes (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- ventas: encabezado de la orden
--- ---------------------------------------------------------------------
 CREATE TABLE ventas (
     id_venta    INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente  INT NOT NULL,
@@ -105,13 +82,7 @@ CREATE TABLE ventas (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- detalle_ventas: lineas de la orden (puente ventas <-> productos)
---
--- precio_unitario_congelado guarda el precio del momento de la compra.
--- No se referencia productos.precio porque ese valor cambia con el
--- tiempo y el historico de la venta debe quedar intacto.
--- ---------------------------------------------------------------------
+
 CREATE TABLE detalle_ventas (
     id_detalle                INT AUTO_INCREMENT PRIMARY KEY,
     id_venta                  INT NOT NULL,
@@ -127,10 +98,6 @@ CREATE TABLE detalle_ventas (
 ) ENGINE=InnoDB;
 
 
--- ---------------------------------------------------------------------
--- promociones: campañas de descuento con vigencia
--- La usa el evento evt_deactivate_expired_promotions_hourly (archivo 06)
--- ---------------------------------------------------------------------
 CREATE TABLE promociones (
     id_promocion INT AUTO_INCREMENT PRIMARY KEY,
     codigo       VARCHAR(40) NOT NULL UNIQUE,
@@ -144,16 +111,6 @@ CREATE TABLE promociones (
 ) ENGINE=InnoDB;
 
 
--- =====================================================================
--- SECCION 2: TABLAS DE AUDITORIA, LOG Y REPORTE
---
--- Se declaran aqui para que el esquema quede completo en un solo
--- archivo y para que 04_Seguridad.sql pueda otorgar permisos sobre
--- ellas. Los archivos 05 y 06 las vuelven a declarar con
--- CREATE TABLE IF NOT EXISTS para poder ejecutarse de forma aislada.
--- =====================================================================
-
--- log de cambios de precio (la escribe trg_audit_precio_producto_after_update)
 CREATE TABLE log_cambios_precio (
     id_auditoria     INT AUTO_INCREMENT PRIMARY KEY,
     id_producto      INT NOT NULL,
@@ -169,7 +126,6 @@ CREATE TABLE log_cambios_precio (
         FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 ) ENGINE=InnoDB;
 
--- log de altas de clientes (la escribe trg_log_new_customer_after_insert)
 CREATE TABLE log_clientes (
     id_log       INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente   INT NOT NULL,
@@ -184,7 +140,6 @@ CREATE TABLE log_clientes (
         FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
 ) ENGINE=InnoDB;
 
--- bitacora de ejecucion de los eventos programados
 CREATE TABLE log_ejecucion_eventos (
     id_log          INT AUTO_INCREMENT PRIMARY KEY,
     nombre_evento   VARCHAR(100) NOT NULL,
@@ -192,10 +147,8 @@ CREATE TABLE log_ejecucion_eventos (
     fecha_ejecucion DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- historico de la bitacora (la llena evt_archive_old_logs_monthly)
 CREATE TABLE log_ejecucion_eventos_historico LIKE log_ejecucion_eventos;
 
--- reporte semanal (lo llena evt_generate_weekly_sales_report)
 CREATE TABLE reporte_ventas_semanales (
     id_reporte      INT AUTO_INCREMENT PRIMARY KEY,
     semana_inicio   DATE NOT NULL UNIQUE,
@@ -205,7 +158,6 @@ CREATE TABLE reporte_ventas_semanales (
     fecha_generado  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- niveles de lealtad (los recalcula evt_recalculate_customer_loyalty_tiers_nightly)
 CREATE TABLE niveles_lealtad_clientes (
     id_cliente     INT PRIMARY KEY,
     total_gastado  DECIMAL(14,2) NOT NULL,
@@ -215,7 +167,6 @@ CREATE TABLE niveles_lealtad_clientes (
         FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
 ) ENGINE=InnoDB;
 
--- lista de reabastecimiento (la llena evt_generate_reorder_list_daily)
 CREATE TABLE lista_reabastecimiento (
     id_lista          INT AUTO_INCREMENT PRIMARY KEY,
     fecha_lista       DATE NOT NULL,
@@ -227,14 +178,12 @@ CREATE TABLE lista_reabastecimiento (
         FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 ) ENGINE=InnoDB;
 
--- resumen diario (lo llena evt_aggregate_daily_sales_data)
 CREATE TABLE resumen_ventas_diarias (
     fecha           DATE PRIMARY KEY,
     cantidad_ventas INT NOT NULL,
     total_vendido   DECIMAL(14,2) NOT NULL
 ) ENGINE=InnoDB;
 
--- inconsistencias (las detecta evt_check_data_consistency_nightly)
 CREATE TABLE inconsistencias_detectadas (
     id_inconsistencia INT AUTO_INCREMENT PRIMARY KEY,
     tipo              VARCHAR(100) NOT NULL,
@@ -243,10 +192,6 @@ CREATE TABLE inconsistencias_detectadas (
 ) ENGINE=InnoDB;
 
 
--- =====================================================================
--- SECCION 3: INDICES DE APOYO
--- Aceleran los JOIN y los filtros que usan las consultas del archivo 02.
--- =====================================================================
 
 CREATE INDEX idx_producto_categoria   ON productos(id_categoria);
 CREATE INDEX idx_producto_proveedor   ON productos(id_proveedor);
@@ -259,11 +204,7 @@ CREATE INDEX idx_detalle_producto     ON detalle_ventas(id_producto);
 CREATE INDEX idx_cliente_registro     ON clientes(fecha_registro);
 
 
--- =====================================================================
--- SECCION 4: DATOS DE EJEMPLO
--- =====================================================================
 
--- --------------------------- categorias ------------------------------
 INSERT INTO categorias (id_categoria, nombre, descripcion) VALUES
 (1, 'Electronica', 'Dispositivos electronicos y accesorios'),
 (2, 'Ropa',        'Prendas de vestir'),
@@ -272,7 +213,6 @@ INSERT INTO categorias (id_categoria, nombre, descripcion) VALUES
 (5, 'Libros',      'Libros y revistas'),
 (6, 'General',     'Categoria por defecto para productos sin clasificacion');
 
--- --------------------------- proveedores -----------------------------
 INSERT INTO proveedores (id_proveedor, nombre, email_contacto, telefono_contacto) VALUES
 (1, 'TecnoAndina SAS',        'ventas@tecnoandina.com',     '6076543210'),
 (2, 'Importadora Digital',    'contacto@impdigital.com',    '6012345678'),
@@ -280,9 +220,7 @@ INSERT INTO proveedores (id_proveedor, nombre, email_contacto, telefono_contacto
 (4, 'Casa y Cocina SA',       'proveedor@casaycocina.com',  '6044448899'),
 (5, 'Deportes Total',         'info@deportestotal.com',     '6023216547');
 
--- --------------------------- productos -------------------------------
--- stock_minimo se define segun el precio: entre mas caro el producto,
--- menos unidades conviene tener en bodega.
+
 INSERT INTO productos
     (id_producto, nombre, descripcion, precio, costo, stock, stock_minimo,
      sku, peso_kg, ubicacion, fecha_creacion, activo, id_categoria, id_proveedor) VALUES
@@ -298,7 +236,6 @@ INSERT INTO productos
 (10, 'Mancuernas 10kg Par',       'Par de mancuernas con caucho',             260000,  160000,  30, 15, 'DEP-MAN-010', 20.000, 'D-01-02', '2025-09-20 16:10:00', TRUE, 4, 5),
 (11, 'Novela El Ultimo Viaje',    'Novela de 320 paginas',                     45000,   20000,  50, 20, 'LIB-NOV-011',  0.400, 'E-01-01', '2025-10-01 09:00:00', TRUE, 5, 5);
 
--- --------------------------- clientes --------------------------------
 INSERT INTO clientes
     (id_cliente, nombre, apellido, email, contrasena, direccion_envio,
      fecha_nacimiento, fecha_registro) VALUES
@@ -311,7 +248,6 @@ INSERT INTO clientes
 (7, 'Mauricio', 'Pineda',   'mauricio.pineda@correo.com', '$2y$10$lP0oI9uY8tR7eW6qA5sD4fG3hJ2kL1zX0cV9bN8mQ7wE6rT5yU4iO', 'Cra 70 #44-21, Medellin',           '1979-12-02', '2026-05-08 21:12:00'),
 (8, 'Sofia',    'Valencia', 'sofia.valencia@correo.com',  '$2y$10$hG7fD6sA5pO4iU3yT2rE1wQ0zX9cV8bN7mK6jH5gF4dS3aP2oI1uY', 'Cra 33 #52-18, Floridablanca',      '1993-04-27', '2026-07-19 15:47:00');
 
--- ----------------------------- ventas --------------------------------
 INSERT INTO ventas (id_venta, id_cliente, fecha_venta, estado) VALUES
 ( 1, 1, '2025-10-14 10:23:00', 'Entregado'),
 ( 2, 2, '2025-11-03 15:40:00', 'Entregado'),
@@ -324,7 +260,6 @@ INSERT INTO ventas (id_venta, id_cliente, fecha_venta, estado) VALUES
 ( 9, 1, '2026-08-02 21:50:00', 'Procesando'),
 (10, 7, '2026-09-05 08:35:00', 'Cancelado');
 
--- ------------------------- detalle_ventas ----------------------------
 INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario_congelado) VALUES
 ( 1,  1, 1, 3100000),
 ( 1,  2, 2,   85000),
@@ -346,22 +281,13 @@ INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario_con
 ( 9,  4, 2,  240000),
 (10,  6, 2,  145000);
 
--- --------------------------- promociones -----------------------------
--- Dos vencidas y una vigente, para que evt_deactivate_expired_promotions_hourly
--- tenga algo que desactivar en su primera corrida.
+
 INSERT INTO promociones (codigo, descripcion, porcentaje, fecha_inicio, fecha_fin, activa) VALUES
 ('BLACK2025',   'Black Friday 2025',            25.00, '2025-11-24 00:00:00', '2025-11-30 23:59:59', TRUE),
 ('NAVIDAD2025', 'Temporada navidena 2025',      15.00, '2025-12-01 00:00:00', '2025-12-26 23:59:59', TRUE),
 ('BIENVENIDA',  'Descuento primera compra',     10.00, '2025-09-01 00:00:00', '2027-12-31 23:59:59', TRUE);
 
 
--- =====================================================================
--- SECCION 5: CONSOLIDACION DE VALORES CALCULADOS
---
--- Estos campos se mantienen al dia con triggers (archivo 05), pero los
--- datos de ejemplo se cargan de forma masiva, asi que hay que
--- calcularlos una vez aqui.
--- =====================================================================
 
 -- total de cada venta = suma de sus lineas de detalle
 UPDATE ventas v
@@ -389,9 +315,6 @@ SET c.fecha_ultimo_pedido = (
 );
 
 
--- =====================================================================
--- SECCION 6: VERIFICACION
--- =====================================================================
 
 SELECT 'categorias' AS tabla, COUNT(*) AS filas FROM categorias
 UNION ALL SELECT 'proveedores',    COUNT(*) FROM proveedores

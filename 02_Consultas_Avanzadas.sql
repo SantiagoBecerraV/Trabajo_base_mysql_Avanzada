@@ -1,262 +1,186 @@
--- =====================================================================
--- PROYECTO BASE DE DATOS AVANZADA - E-COMMERCE
--- Archivo 02: Consultas Avanzadas (Analisis y Reporteo)
---
--- Requisito previo: haber ejecutado 01_Esquema_y_Datos.sql
---
--- =====================================================================
+-- ===========================================
+-- CONSULTAS
+-- ===========================================
 
 USE ecommerce_db;
 
-
--- =====================================================================
--- 1. TOP 10 PRODUCTOS MAS VENDIDOS
---    Pregunta de negocio: que 10 productos han generado mas ingresos?
--- =====================================================================
-SELECT
-    p.id_producto,
-    p.nombre                                             AS producto,
-    c.nombre                                             AS categoria,
-    SUM(dv.cantidad)                                     AS unidades_vendidas,
-    SUM(dv.cantidad * dv.precio_unitario_congelado)      AS ingresos_totales
+-- Generar un ranking con los 10 productos que han generado más ingresos.
+SELECT 
+	p.nombre AS producto,
+	p.id_producto,
+	SUM(dv.cantidad) AS unidades_vendidas,
+	SUM(dv.cantidad * precio_unitario_congelado) AS total_ingresos
 FROM productos p
-INNER JOIN detalle_ventas dv ON dv.id_producto = p.id_producto
-INNER JOIN ventas v          ON v.id_venta     = dv.id_venta
-INNER JOIN categorias c      ON c.id_categoria = p.id_categoria
-WHERE v.estado <> 'Cancelado'
-GROUP BY p.id_producto, p.nombre, c.nombre
-ORDER BY ingresos_totales DESC
+INNER JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
+INNER JOIN ventas v ON dv.id_venta = v.id_venta
+WHERE v.estado != 'Cancelado'
+GROUP BY p.id_producto, p.nombre
+ORDER BY total_ingresos DESC
 LIMIT 10;
 
+-- Identificar los productos en el 10% inferior de ventas 
 
--- =====================================================================
--- 2. PRODUCTOS CON BAJAS VENTAS
---    Pregunta de negocio: que productos estan en el 10% inferior de
---    ingresos y habria que considerar descontinuar?
---
---    Se usa NTILE(10) sobre una CTE en vez de un LIMIT fijo, para que
---    el corte del decil se ajuste solo cuando crezca el catalogo.
---    El LEFT JOIN conserva los productos que nunca se han vendido,
---    que son justamente los peores candidatos.
--- =====================================================================
-WITH ingresos_por_producto AS (
-    SELECT
-        p.id_producto,
-        p.nombre,
-        p.activo,
-        COALESCE(SUM(dv.cantidad), 0)                                AS unidades_vendidas,
-        COALESCE(SUM(dv.cantidad * dv.precio_unitario_congelado), 0) AS ingresos_totales
-    FROM productos p
-    LEFT JOIN detalle_ventas dv ON dv.id_producto = p.id_producto
-    LEFT JOIN ventas v          ON v.id_venta = dv.id_venta AND v.estado <> 'Cancelado'
-    GROUP BY p.id_producto, p.nombre, p.activo
-),
-deciles AS (
-    SELECT
-        ingresos_por_producto.*,
-        NTILE(10) OVER (ORDER BY ingresos_totales ASC) AS decil
-    FROM ingresos_por_producto
-)
+SELECT 
+    p.id_producto,
+    p.nombre,
+    c.nombre AS categoria,
+    COALESCE(SUM(dv.cantidad), 0) AS unidades_vendidas,
+    p.stock,
+    p.precio
+FROM productos p
+LEFT JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
+LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
+GROUP BY p.id_producto, p.nombre, c.nombre, p.stock, p.precio
+ORDER BY unidades_vendidas ASC
+LIMIT 2;
+
+
+-- Listar los 5 clientes con el mayor valor de vida
+
 SELECT
-    id_producto,
-    nombre AS producto,
-    unidades_vendidas,
-    ingresos_totales,
-    decil,
-    'Candidato a descontinuar' AS recomendacion
-FROM deciles
-WHERE decil = 1
-ORDER BY ingresos_totales ASC;
-
-
--- =====================================================================
--- 3. CLIENTES VIP
---    Pregunta de negocio: quienes son los 5 clientes con mayor valor
---    de vida (LTV), medido por su gasto historico total?
--- =====================================================================
-SELECT
-    c.id_cliente,
-    CONCAT(c.nombre, ' ', c.apellido) AS cliente,
-    c.email,
-    COUNT(v.id_venta)                 AS total_compras,
-    SUM(v.total)                      AS ltv_total,
-    ROUND(AVG(v.total), 2)            AS ticket_promedio
+	c.id_cliente,
+	c.nombre,
+	c.apellido,
+	COUNT(v.id_venta) AS total_compras,
+	SUM(v.total) AS ltv_total
 FROM clientes c
-INNER JOIN ventas v ON v.id_cliente = c.id_cliente
-WHERE v.estado <> 'Cancelado'
-GROUP BY c.id_cliente, c.nombre, c.apellido, c.email
+INNER JOIN ventas v ON c.id_cliente = v.id_cliente
+WHERE estado != 'Cancelado'
+GROUP BY c.id_cliente, c.nombre, c.apellido
 ORDER BY ltv_total DESC
 LIMIT 5;
 
+-- Mostrar las ventas totales agrupadas por mes y año.
 
--- =====================================================================
--- 4. ANALISIS DE VENTAS MENSUALES
---    Pregunta de negocio: como se comportan las ventas totales mes a mes?
--- =====================================================================
-SELECT
-    YEAR(v.fecha_venta)                          AS anio,
-    MONTH(v.fecha_venta)                         AS numero_mes,
-    DATE_FORMAT(v.fecha_venta, '%Y-%m')          AS periodo,
-    COUNT(v.id_venta)                            AS cantidad_ventas,
-    SUM(v.total)                                 AS total_vendido,
-    ROUND(AVG(v.total), 2)                       AS ticket_promedio
+SELECT 
+    YEAR(v.fecha_venta) AS año,
+    MONTH(v.fecha_venta) AS mes,
+    DATE_FORMAT(v.fecha_venta, '%Y-%m') AS periodo,
+    COUNT(v.id_venta) AS cantidad_ventas,
+    SUM(v.total) AS total_ventas
 FROM ventas v
-WHERE v.estado <> 'Cancelado'
 GROUP BY YEAR(v.fecha_venta), MONTH(v.fecha_venta), DATE_FORMAT(v.fecha_venta, '%Y-%m')
-ORDER BY anio, numero_mes;
-
-
--- =====================================================================
--- 5. CRECIMIENTO DE CLIENTES
---    Pregunta de negocio: cuantos clientes nuevos se registran por
---    trimestre, y como acumulan en el tiempo?
--- =====================================================================
-WITH registros_por_trimestre AS (
-    SELECT
-        YEAR(c.fecha_registro)    AS anio,
-        QUARTER(c.fecha_registro) AS trimestre,
-        COUNT(*)                  AS clientes_nuevos
-    FROM clientes c
-    GROUP BY YEAR(c.fecha_registro), QUARTER(c.fecha_registro)
-)
+ORDER BY año ASC, mes ASC;
+   
+ 
+-- Calcular el número de nuevos clientes registrados por trimestre.
+   
 SELECT
-    anio,
-    trimestre,
-    CONCAT('Q', trimestre, '-', anio)            AS etiqueta,
-    clientes_nuevos,
-    SUM(clientes_nuevos) OVER (
-        ORDER BY anio, trimestre
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    )                                            AS acumulado_historico
-FROM registros_por_trimestre
-ORDER BY anio, trimestre;
+    YEAR(fecha_registro) AS anio,
+    MONTH(fecha_registro) AS numero_mes,
+    QUARTER(fecha_registro) AS trimestre_numero,
+    CONCAT('Q', QUARTER(fecha_registro), '-', YEAR(fecha_registro)) AS trimestre_etiqueta,
+    COUNT(id_cliente) AS clientes_nuevos
+FROM clientes 
+GROUP BY 
+    YEAR(fecha_registro),
+    MONTH(fecha_registro),
+    QUARTER(fecha_registro),
+    CONCAT('Q', QUARTER(fecha_registro), '-', YEAR(fecha_registro))
+ORDER BY 
+    anio ASC, 
+    trimestre_numero ASC;
 
-
--- =====================================================================
--- 6. TASA DE COMPRA REPETIDA
---    Pregunta de negocio: que porcentaje de los clientes que han
---    comprado alguna vez ha hecho mas de una compra?
--- =====================================================================
-WITH compras_por_cliente AS (
-    SELECT
-        v.id_cliente,
-        COUNT(v.id_venta) AS total_compras
-    FROM ventas v
-    WHERE v.estado <> 'Cancelado'
-    GROUP BY v.id_cliente
+-- Determinar qué porcentaje de clientes ha realizado más de una compra.
+WITH ComprasPorCliente AS (
+    SELECT 
+        id_cliente,
+        COUNT(id_venta) AS total_compras
+    FROM ventas
+    WHERE estado != 'Cancelado'
+    GROUP BY id_cliente
 )
-SELECT
-    COUNT(*)                                                       AS clientes_compradores,
-    SUM(CASE WHEN total_compras > 1 THEN 1 ELSE 0 END)             AS clientes_recurrentes,
+SELECT 
+    COUNT(id_cliente) AS total_clientes_compradores,
+    COUNT(CASE WHEN total_compras > 1 THEN 1 END) AS clientes_recurrentes,
     ROUND(
-        SUM(CASE WHEN total_compras > 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+        (COUNT(CASE WHEN total_compras > 1 THEN 1 END) * 100.0) / COUNT(id_cliente), 
         2
-    )                                                              AS tasa_compra_repetida_pct
-FROM compras_por_cliente;
+    ) AS tasa_compra_repetida_porcentaje
+FROM ComprasPorCliente;
 
-
--- =====================================================================
--- 7. PRODUCTOS COMPRADOS JUNTOS FRECUENTEMENTE
---    Pregunta de negocio: que pares de productos aparecen juntos en la
---    misma transaccion? (base para recomendaciones de "cross-selling")
---
---    La condicion dv1.id_producto < dv2.id_producto evita que el mismo
---    par salga dos veces invertido y que un producto se empareje consigo mismo.
--- =====================================================================
-SELECT
-    p1.nombre        AS producto_1,
-    p2.nombre        AS producto_2,
-    COUNT(*)         AS veces_comprados_juntos
+-- Identificar pares de productos que a menudo se compran en la misma transacción.
+SELECT 
+    p1.nombre AS producto_1,
+    p2.nombre AS producto_2,
+    COUNT(*) AS veces_comprados_juntos
 FROM detalle_ventas dv1
-INNER JOIN detalle_ventas dv2
-        ON dv2.id_venta = dv1.id_venta
-       AND dv2.id_producto > dv1.id_producto
-INNER JOIN ventas v     ON v.id_venta = dv1.id_venta
-INNER JOIN productos p1 ON p1.id_producto = dv1.id_producto
-INNER JOIN productos p2 ON p2.id_producto = dv2.id_producto
-WHERE v.estado <> 'Cancelado'
-GROUP BY p1.id_producto, p1.nombre, p2.id_producto, p2.nombre
-ORDER BY veces_comprados_juntos DESC, producto_1;
+INNER JOIN detalle_ventas dv2 
+    ON dv1.id_venta = dv2.id_venta 
+    AND dv1.id_producto < dv2.id_producto
+INNER JOIN productos p1 ON dv1.id_producto = p1.id_producto
+INNER JOIN productos p2 ON dv2.id_producto = p2.id_producto
+INNER JOIN ventas v ON dv1.id_venta = v.id_venta
+WHERE v.estado != 'Cancelado'
+GROUP BY 
+    p1.id_producto, 
+    p1.nombre, 
+    p2.id_producto, 
+    p2.nombre
+ORDER BY veces_comprados_juntos DESC;
 
+-- Calcular la tasa de rotación de stock para cada categoría de producto.
 
--- =====================================================================
--- 8. ROTACION DE INVENTARIO
---    Pregunta de negocio: que tan rapido rota el stock de cada categoria?
---
---    Se calculan las unidades vendidas y el stock en subconsultas
---    independientes. Si se hiciera con un solo JOIN encadenado, el
---    SUM(p.stock) se multiplicaria por el numero de lineas de venta
---    de cada producto e inflaria el denominador.
--- =====================================================================
-SELECT
+SELECT 
     c.id_categoria,
-    c.nombre                                                AS categoria,
-    COALESCE(inv.stock_total, 0)                            AS stock_actual,
-    COALESCE(ven.unidades_vendidas, 0)                      AS unidades_vendidas,
+    c.nombre AS categoria,
+    COALESCE(SUM(p.stock), 0) AS stock_actual,
+    COALESCE(SUM(dv.cantidad), 0) AS unidades_vendidas_totales,
     ROUND(
-        COALESCE(ven.unidades_vendidas, 0) / NULLIF(inv.stock_total, 0),
-        4
-    )                                                       AS tasa_rotacion
+        COALESCE(SUM(dv.cantidad), 0) / NULLIF(SUM(p.stock), 0), 
+        2
+    ) AS tasa_rotacion_stock
 FROM categorias c
-LEFT JOIN (
-    SELECT id_categoria, SUM(stock) AS stock_total
-    FROM productos
-    GROUP BY id_categoria
-) inv ON inv.id_categoria = c.id_categoria
-LEFT JOIN (
-    SELECT p.id_categoria, SUM(dv.cantidad) AS unidades_vendidas
-    FROM detalle_ventas dv
-    JOIN ventas v    ON v.id_venta = dv.id_venta
-    JOIN productos p ON p.id_producto = dv.id_producto
-    WHERE v.estado <> 'Cancelado'
-    GROUP BY p.id_categoria
-) ven ON ven.id_categoria = c.id_categoria
-ORDER BY tasa_rotacion DESC;
+LEFT JOIN productos p ON c.id_categoria = p.id_categoria
+LEFT JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
+LEFT JOIN ventas v ON dv.id_venta = v.id_venta AND v.estado != 'Cancelado'
+GROUP BY c.id_categoria, c.nombre
+ORDER BY tasa_rotacion_stock DESC;
 
+-- Listar productos cuyo stock actual está por debajo de su umbral mínimo.
 
--- =====================================================================
--- 9. PRODUCTOS QUE NECESITAN REABASTECIMIENTO
---    Pregunta de negocio: que productos activos tienen el stock por
---    debajo de su umbral minimo y cuantas unidades faltan?
--- =====================================================================
-SELECT
+-- Un truco de un senior como yo Santiago Becerra Creacion columna
+ALTER TABLE productos
+ADD COLUMN stock_minimo INT NOT NULL DEFAULT 10;
+
+UPDATE productos
+SET stock_minimo = CASE 
+    WHEN precio > 2000000 THEN 5      
+    WHEN precio > 500000 THEN 15      
+    ELSE 20                           
+END;
+
+SELECT id_producto, nombre, precio, stock, stock_minimo 
+FROM productos;
+
+SELECT 
     p.id_producto,
-    p.nombre                       AS producto,
-    c.nombre                       AS categoria,
-    pv.nombre                      AS proveedor,
-    pv.email_contacto              AS contacto_proveedor,
-    p.stock                        AS stock_actual,
+    p.nombre,
+    c.nombre AS categoria,
+    pv.nombre AS proveedor,
+    p.stock AS stock_actual,
     p.stock_minimo,
-    (p.stock_minimo - p.stock)     AS unidades_faltantes,
-    p.costo                        AS costo_unitario,
-    (p.stock_minimo - p.stock) * p.costo AS inversion_requerida
+    (p.stock_minimo - p.stock) AS unidades_faltantes,
+    p.precio
 FROM productos p
-INNER JOIN proveedores pv ON pv.id_proveedor = p.id_proveedor
-LEFT  JOIN categorias  c  ON c.id_categoria  = p.id_categoria
-WHERE p.activo = TRUE
-  AND p.stock < p.stock_minimo
+INNER JOIN categorias c ON p.id_categoria = c.id_categoria
+INNER JOIN proveedores pv ON p.id_proveedor = pv.id_proveedor
+WHERE p.stock < p.stock_minimo
 ORDER BY unidades_faltantes DESC;
 
+-- Identificar clientes que agregaron productos pero no completaron una venta en un período determinado.
 
--- =====================================================================
--- 10. ANALISIS DE CARRITO ABANDONADO (SIMULADO)
---     Pregunta de negocio: que clientes iniciaron una compra en los
---     ultimos 60 dias y no la completaron?
---
---     Se consideran "abandonadas" las ventas que quedaron en
---     'Pendiente de Pago' o que terminaron en 'Cancelado'.
--- =====================================================================
 SELECT
-    c.id_cliente,
-    CONCAT(c.nombre, ' ', c.apellido)          AS cliente,
-    c.email,
-    v.id_venta,
-    v.fecha_venta,
-    v.estado,
-    v.total                                    AS valor_carrito,
-    DATEDIFF(NOW(), v.fecha_venta)             AS dias_desde_abandono
+	c.id_cliente,
+	CONCAT(c.nombre, '', c.apellido) AS nombre_cliente,
+	c.email,
+	v.id_venta,
+	v.fecha_venta,
+	v.estado,
+	v.total AS valor_carrito,
+    DATEDIFF(NOW(), v.fecha_venta) AS dias_desde_abandono
 FROM ventas v
-INNER JOIN clientes c ON c.id_cliente = v.id_cliente
-WHERE v.estado IN ('Pendiente de Pago', 'Cancelado')
-  AND v.fecha_venta >= NOW() - INTERVAL 60 DAY
+INNER JOIN clientes c ON v.id_cliente = c.id_cliente
+WHERE v.estado IN ('Pendiente de pago', 'Cancelado')
+    AND v.fecha_venta >= DATE_SUB(NOW(), INTERVAL 60 DAY)
 ORDER BY v.total DESC, v.fecha_venta DESC;
