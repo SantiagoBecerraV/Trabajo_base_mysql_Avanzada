@@ -1,8 +1,3 @@
--- Proyecto Base de Datos E-commerce
--- Archivo 1: crea las tablas y mete los datos de prueba
--- Ejecutar este primero, los demas dependen de este
-
--- creamos la base de datos
 DROP DATABASE IF EXISTS ecommerce_db;
 CREATE DATABASE ecommerce_db;
 USE ecommerce_db;
@@ -10,7 +5,6 @@ USE ecommerce_db;
 
 -- ====================================
 -- TABLAS
--- ====================================
 
 -- tabla de categorias
 CREATE TABLE categorias (
@@ -28,7 +22,6 @@ CREATE TABLE proveedores (
 );
 
 -- tabla de productos
--- cada producto tiene una categoria y un proveedor
 CREATE TABLE productos (
     id_producto INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(150) NOT NULL UNIQUE,
@@ -72,7 +65,6 @@ CREATE TABLE ventas (
 
 -- tabla detalle_ventas
 -- esta es la tabla que conecta ventas con productos (muchos a muchos)
--- precio_unitario_congelado guarda el precio de cuando se hizo la venta
 -- ojo: no usamos productos.precio directo porque ese precio puede cambiar despues
 CREATE TABLE detalle_ventas (
     id_detalle INT AUTO_INCREMENT PRIMARY KEY,
@@ -88,7 +80,6 @@ CREATE TABLE detalle_ventas (
 
 -- ====================================
 -- DATOS DE PRUEBA
--- ====================================
 
 -- categorias
 INSERT INTO categorias (id_categoria, nombre, descripcion) VALUES
@@ -107,8 +98,7 @@ INSERT INTO proveedores (id_proveedor, nombre, email_contacto, telefono_contacto
 (5, 'Deportes Total', 'info@deportestotal.com', '6023216547');
 
 -- productos
--- el producto 11 no lo vamos a vender en ninguna venta, sirve para la consulta de "bajas ventas"
--- productos 4 y 8 quedan con poco stock
+
 INSERT INTO productos (id_producto, nombre, descripcion, precio, costo, stock, sku, fecha_creacion, activo, id_categoria, id_proveedor) VALUES
 (1, 'Laptop Vortex 14', 'Portatil 14 pulgadas 16GB RAM SSD 512GB', 3200000, 2400000, 25, 'ELE-LAP-001', '2025-09-01 08:00:00', TRUE, 1, 1),
 (2, 'Mouse Inalambrico Nova', 'Mouse optico inalambrico 2.4GHz', 85000, 48000, 120, 'ELE-MOU-002', '2025-09-01 08:05:00', TRUE, 1, 1),
@@ -123,8 +113,6 @@ INSERT INTO productos (id_producto, nombre, descripcion, precio, costo, stock, s
 (11, 'Novela El Ultimo Viaje', 'Novela de 320 paginas', 45000, 20000, 50, 'LIB-NOV-011', '2025-10-01 09:00:00', TRUE, 5, 5);
 
 -- clientes
--- clientes 1 y 2 van a tener mas de una compra
--- cliente 8 esta registrado pero nunca compra nada
 INSERT INTO clientes (id_cliente, nombre, apellido, email, contrasena, direccion_envio, fecha_registro) VALUES
 (1, 'Andres', 'Cardenas', 'andres.cardenas@correo.com', '$2y$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Cra 27 #45-12, Bucaramanga', '2025-09-12 09:14:00'),
 (2, 'Laura', 'Mejia', 'laura.mejia@correo.com', '$2y$10$mR4fV8sTqZ1nXc7dPwEuLeYb3kJhGvNaQxCzRtUiOpAsDfGhJkLmN', 'Calle 93 #11-27, Bogota', '2025-09-25 17:42:00'),
@@ -136,7 +124,6 @@ INSERT INTO clientes (id_cliente, nombre, apellido, email, contrasena, direccion
 (8, 'Sofia', 'Valencia', 'sofia.valencia@correo.com', '$2y$10$hG7fD6sA5pO4iU3yT2rE1wQ0zX9cV8bN7mK6jH5gF4dS3aP2oI1uY', 'Cra 33 #52-18, Floridablanca', '2026-07-19 15:47:00');
 
 -- ventas
--- las repartimos en varios meses y horas para que las consultas de reportes tengan sentido
 INSERT INTO ventas (id_venta, id_cliente, fecha_venta, estado) VALUES
 (1, 1, '2025-10-14 10:23:00', 'Entregado'),
 (2, 2, '2025-11-03 15:40:00', 'Entregado'),
@@ -150,8 +137,6 @@ INSERT INTO ventas (id_venta, id_cliente, fecha_venta, estado) VALUES
 (10, 7, '2026-09-05 08:35:00', 'Cancelado');
 
 -- detalle de ventas
--- fijate que el producto 1 se vendio en $3100000 en la venta 1 y en $3200000 en la venta 6
--- eso es a proposito, para comprobar que el precio congelado funciona bien
 INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario_congelado) VALUES
 (1, 1, 1, 3100000),
 (1, 2, 2, 85000),
@@ -174,12 +159,8 @@ INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario_con
 (10, 6, 2, 145000);
 
 
--- ====================================
 -- ACTUALIZAR TOTALES
--- ====================================
 
--- calculamos el total de cada venta sumando su detalle
--- asi no toca escribirlo a mano y arriesgarse a que quede mal
 UPDATE ventas v
 SET v.total = (
     SELECT SUM(d.cantidad * d.precio_unitario_congelado)
@@ -188,9 +169,8 @@ SET v.total = (
 );
 
 
--- ====================================
--- PROBAR QUE TODO QUEDO BIEN
--- ====================================
+
+-- PROBAR TODO 
 
 SELECT 'categorias' AS tabla, COUNT(*) AS total FROM categorias
 UNION ALL SELECT 'proveedores', COUNT(*) FROM proveedores
@@ -203,126 +183,3 @@ SELECT v.id_venta, c.nombre, c.apellido, v.fecha_venta, v.estado, v.total
 FROM ventas v
 JOIN clientes c ON c.id_cliente = v.id_cliente
 ORDER BY v.fecha_venta;
-
-
-
--- ===========================================
--- CONSULTAS
--- TOP 10 PRODUCTOS MAS VENDIDOS
--- ===========================================
-SELECT 
-	p.nombre AS producto,
-	p.id_producto,
-	SUM(dv.cantidad) AS unidades_vendidas,
-	SUM(dv.cantidad * precio_unitario_congelado) AS total_ingresos
-FROM productos p
-INNER JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
-INNER JOIN ventas v ON dv.id_venta = v.id_venta
-WHERE v.estado != 'Cancelado'
-GROUP BY p.id_producto, p.nombre
-ORDER BY total_ingresos DESC
-LIMIT 10;
-
--- Identificar los productos en el 10% inferior de ventas 
-SELECT
-	p.nombre AS producto,
-	p.id_producto,
-    COALESCE(SUM(dv.cantidad * dv.precio_unitario_congelado), 0) AS ingresos_totales
-FROM productos p
-LEFT JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
-LEFT JOIN ventas v ON dv.id_venta = v.id_venta AND v.estado != 'Cancelado'
-GROUP BY p.id_producto, p.nombre
-ORDER BY ingresos_totales ASC
-LIMIT 1; -- En tu script de prueba con 11 productos, el 10% equivale exactamente a 1 producto (ej. 'Novela El Ultimo Viaje').
-
-
--- Listar los 5 clientes con el mayor valor de vida
-
-SELECT
-	c.id_cliente,
-	c.nombre,
-	c.apellido,
-	COUNT(v.id_venta) AS total_compras,
-	SUM(v.total) AS ltv_total
-FROM clientes c
-INNER JOIN ventas v ON c.id_cliente = v.id_cliente
-WHERE estado != 'Cancelado'
-GROUP BY c.id_cliente, c.nombre, c.apellido
-ORDER BY ltv_total DESC
-LIMIT 5;
-
-
--- ===========================================
--- ROLES 
--- CREACION DE ROLES 
-
--- administrador_sistema
-CREATE ROLE IF NOT EXISTS 'administrador_sistema';
-GRANT ALL PRIVILEGES ON ecommerce_db.* TO 'administrador_sistema';
-
--- Gerente_Marketing 
-CREATE ROLE IF NOT EXISTS 'gerente_marketing';
-GRANT SELECT ON ecommerce_db.ventas TO 'gerente_marketing';
-GRANT SELECT ON ecommerce_db.clientes TO 'Gerente_Marketing';
-
--- Analista_Datos 
-CREATE ROLE IF NOT EXISTS 'analista_datos';
-GRANT SELECT ON ecommerce_db.categorias TO 'analista_datos';
-GRANT SELECT ON ecommerce_db.proveedores TO 'analista_datos';
-GRANT SELECT ON ecommerce_db.productos TO 'analista_datos';
-GRANT SELECT ON ecommerce_db.clientes TO 'analista_datos';
-GRANT SELECT ON ecommerce_db.ventas TO 'analista_datos';
-GRANT SELECT ON ecommerce_db.detalle_ventas TO 'analista_datos';
--- FALTA REVISAR COMO NO PUEDA LEER LAS TABLAS DE AUDITORIA
-
--- Empleado_Inventario 
-CREATE ROLE IF NOT EXISTS 'empleado_inventario';
-GRANT UPDATE  (stock, ubicacion) ON ecommerce_dc.productos TO 'empleado_inventario';
-
--- Atencion_cliente
-CREATE ROLE IF NOT EXISTS 'atencion_cliente';
-GRANT SELECT ON ecommerce_db.clientes TO 'atencion_cliente';
-GRANT SELECT ON ecommerce_db.ventas TO 'atencion_cliente';
--- COMO HACER QUE NO PUEDA MODIFICAR PRECIOS SI SOLO TIENE SELECT
-
--- Auditor_Financiero 
-CREATE ROLE IF NOT EXISTS 'auditor_financiero';
-GRANT SELECT ecommerce_db.clientes TO 'auditor_financiero';
-GRANT SELECT ecommerce_db.ventas TO 'auditor_financiero';
--- FALA DAR PERMISO DE VER LOGS DE PRECIOS
-
--- USUARIOS
-
--- Usuario admin
-CREATE USER IF NOT EXISTS 'admin_user'@'%' 
-IDENTIFIED BY 'admin123';
-GRANT 'administrador_sistema' TO 'admin_user'@'%';
-SET DEFAULT ROLE 'administrador_sistema' TO 'admin_user'@'%';
-
-SHOW GRANTS FOR 'admin_user'@'%';
-
--- Marketing usuario
-CREATE USER IF NOT EXISTS 'marketing_user'@'%' 
-IDENTIFIED BY 'marketing123';
-GRANT 'gerente_marketing' TO 'marketing_user'@'%';
-SET DEFAULT ROLE 'gerente_marketing' TO 'marketing_user'@'%';
-
-SHOW GRANTS FOR 'marketing_user'@'%';
-
--- Usuario Inventario
-CREATE USER IF NOT EXISTS 'inventory_user'@'%' 
-IDENTIFIED BY 'inventory123';
-GRANT 'empleado_inventario' TO 'inventory_user'@'%';
-SET DEFAULT ROLE 'empleado_inventario' TO 'inventory_user'@'%';
-
-SHOW GRANTS FOR 'inventory_user'@'%';
-
--- Usuario support
-CREATE USER IF NOT EXISTS 'support_user'@'%' 
-IDENTIFIED BY 'support123';
-GRANT 'atencion_cliente' TO 'support_user'@'%';
-SET DEFAULT ROLE 'atencion_cliente' TO 'support_user'@'%';
-
-SHOW GRANTS FOR 'support_user'@'%';
-
--- EVITAR ANALISTA DATOS
