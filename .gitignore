@@ -1,0 +1,11 @@
+
+*.bak
+*.dump
+dump.sql
+backup*.sql
+
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
